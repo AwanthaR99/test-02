@@ -6,31 +6,38 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 export default function FeaturedCategories() {
-  // 1. TypeScript Fix: HTMLDivElement Type
   const sliderRef = useRef<HTMLDivElement>(null);
   
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
-  // 2. TypeScript Fix: Mouse Event 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!sliderRef.current) return;
-    setIsDragging(true);
+    
     setStartX(e.pageX - sliderRef.current.offsetLeft);
     setScrollLeft(sliderRef.current.scrollLeft);
   };
 
-  const handleMouseUpOrLeave = () => {
-    setIsDragging(false);
-  };
-
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || !sliderRef.current) return;
-    e.preventDefault();
+    if (!sliderRef.current) return;
+    
     const x = e.pageX - sliderRef.current.offsetLeft;
     const walk = (x - startX) * 2; // Scroll speed multiplier
-    sliderRef.current.scrollLeft = scrollLeft - walk;
+
+    
+    if (Math.abs(x - startX) > 5) {
+      if (!isDragging) setIsDragging(true);
+      e.preventDefault();
+      sliderRef.current.scrollLeft = scrollLeft - walk;
+    }
+  };
+
+  const handleMouseUpOrLeave = () => {
+    
+    setTimeout(() => {
+      setIsDragging(false);
+    }, 50);
   };
 
   return (
@@ -38,13 +45,13 @@ export default function FeaturedCategories() {
       
       {/* Header */}
       <div className="mb-8 md:mb-12 text-center md:text-left select-none">
-         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Collections</span>
-         <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mt-2 text-black">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Collections</span>
+          <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mt-2 text-black">
             Curated For You
-         </h2>
+          </h2>
       </div>
 
-      {/* CONTAINER */}
+      {/* SLIDER CONTAINER */}
       <div 
         ref={sliderRef}
         onMouseDown={handleMouseDown}
@@ -59,14 +66,14 @@ export default function FeaturedCategories() {
         `}
       >
         
-        {/* 1. MEN'S SECTION (Mobile Order: 1) */}
+        {/* 1. MEN'S SECTION */}
         <div className="order-1 md:order-none relative group overflow-hidden min-w-full md:min-w-0 snap-center w-full h-full block select-none">
           <Link 
             href="/shop?category=men" 
-            className={`block w-full h-full ${isDragging ? 'pointer-events-none' : ''}`}
+            className={`block w-full h-full ${isDragging ? 'pointer-events-none' : 'pointer-events-auto'}`}
           >
             <Image
-                src="/men.jpg" // Image path fix
+                src="/men.jpg" 
                 alt="Men's Collection"
                 fill
                 className="object-cover transition-transform duration-1000 group-hover:scale-105 filter grayscale group-hover:grayscale-0"
@@ -85,10 +92,9 @@ export default function FeaturedCategories() {
         </div>
 
         {/* 2. RIGHT SIDE WRAPPER */}
-        
         <div className="contents md:flex md:flex-col md:gap-4 md:h-full">
            
-           {/* Top Box: Promo (Mobile Order: 3 - Last) */}
+           {/* Top Box: Promo */}
            <div className="order-3 md:order-none flex bg-black text-white p-8 flex-col justify-center items-center text-center relative overflow-hidden group min-w-full md:min-w-0 snap-center h-full md:h-auto md:flex-1 select-none">
               <div className="relative z-10">
                 <h4 className="text-3xl font-bold uppercase tracking-tight mb-2">Summer '26</h4>
@@ -97,7 +103,7 @@ export default function FeaturedCategories() {
                 </p>
                 <Link 
                   href="/shop" 
-                  className={`inline-block border-b border-white pb-1 text-xs uppercase tracking-widest hover:text-gray-300 transition ${isDragging ? 'pointer-events-none' : ''}`}
+                  className={`inline-block border-b border-white pb-1 text-xs uppercase tracking-widest hover:text-gray-300 transition ${isDragging ? 'pointer-events-none' : 'pointer-events-auto'}`}
                 >
                   Read the Story
                 </Link>
@@ -105,11 +111,11 @@ export default function FeaturedCategories() {
               <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-colors" />
            </div>
 
-           {/* Bottom Box: Women's Image (Mobile Order: 2 - Middle) */}
+           {/* Bottom Box: Women's Image */}
            <div className="order-2 md:order-none relative group overflow-hidden min-w-full md:min-w-0 snap-center h-full md:h-auto md:flex-[2] block select-none">
              <Link 
                href="/shop?category=women" 
-               className={`block w-full h-full ${isDragging ? 'pointer-events-none' : ''}`}
+               className={`block w-full h-full ${isDragging ? 'pointer-events-none' : 'pointer-events-auto'}`}
              >
                 <Image
                     src="/women.jpg" 

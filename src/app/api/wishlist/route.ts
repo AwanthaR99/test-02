@@ -1,56 +1,69 @@
-import { createClient } from "next-sanity";
 import { NextResponse } from "next/server";
+import { createClient } from "next-sanity";
 
-const client = createClient({
+const writeClient = createClient({
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID,
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET,
+  apiVersion: "2024-01-01",
   useCdn: false,
-  token: process.env.SANITY_API_TOKEN, // Write Token
-  apiVersion: '2024-01-01',
+  token: process.env.SANITY_API_TOKEN, 
 });
 
 export async function POST(req: Request) {
   try {
     const { productId, userEmail, action } = await req.json();
 
-    // 1. User finding using email
-    const userQuery = `*[_type == "user" && email == "${userEmail}"][0]`;
-    let user = await client.fetch(userQuery);
+    console.log(`📥 API RECEIVED: Email: ${userEmail} | ProductID: ${productId} | Action: ${action}`);
 
-    // 2. if user not here creating user
-    if (!user) {
-      user = await client.create({
-        _type: 'user',
-        email: userEmail,
-        name: 'New User', 
-        wishlist: []
-      });
+    if (!userEmail || !productId) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // 3. Add or Remove Logic
-    if (action === 'add') {
-      // Wishlist adding
-      await client
+    
+    let user = await writeClient.fetch(`*[_type == "user" && email == $email][0]`, { email: userEmail });
+
+    
+    if (!user) {
+      console.log(`⚠️ USER NOT FOUND IN DB. CREATING AUTOMATICALLY FOR: ${userEmail}`);
+      user = await writeClient.create({
+        _type: "user",
+        name: userEmail.split("@")[0], 
+        email: userEmail,
+        wishlist: [],
+      });
+      console.log(`👤 AUTO-CREATED USER ID: ${user._id}`);
+    }
+
+    // 2. Add Action
+    if (action === "add") {
+      await writeClient
         .patch(user._id)
         .setIfMissing({ wishlist: [] })
-        .insert('after', 'wishlist[-1]', [{ _type: 'reference', _ref: productId, _key: productId }])
+        .insert("after", "wishlist[-1]", [
+          {
+            _key: Math.random().toString(36).substring(2, 11),
+            _type: "reference",
+            _ref: productId,
+          },
+        ])
         .commit();
         
-      return NextResponse.json({ message: "Added to wishlist" });
-
-    } else {
-      // Wishlist remove
-      
-      await client
+      console.log(`✅ PRODUCT ${productId} ADDED TO WISHLIST SUCCESSFULLY!`);
+    } 
+    
+    // 3. Remove Action
+    else if (action === "remove") {
+      await writeClient
         .patch(user._id)
-        .unset([`wishlist[_ref=="${productId}"]`]) 
+        .unset([`wishlist[_ref == "${productId}"]`])
         .commit();
 
-      return NextResponse.json({ message: "Removed from wishlist" });
+      console.log(`🗑️ PRODUCT ${productId} REMOVED FROM WISHLIST SUCCESSFULLY!`);
     }
 
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Failed to update wishlist" }, { status: 500 });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("❌ SANITY WISHLIST API CRASHED:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

@@ -109,6 +109,16 @@ export default function ProductsListPage() {
                     </span>
                   </td>
                   <td className="p-5 text-right space-x-2">
+                    
+                    {/* 🚨 EDIT BUTTON ADDED HERE */}
+                    <Link 
+                      href={`/admin/products/edit/${product._id}`}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-flex items-center justify-center"
+                      title="Edit Product"
+                    >
+                      <Edit size={18} />
+                    </Link>
+
                     <button 
                       onClick={() => handleDelete(product._id, product.title)}
                       disabled={deletingId === product._id}

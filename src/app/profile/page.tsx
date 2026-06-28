@@ -24,7 +24,9 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchOrders = async () => {
       if (session?.user?.email) {
-        //  Query update 
+        
+        
+        
         const query = `*[_type == "order" && email == "${session.user.email}"] | order(createdAt desc) {
           _id,
           orderId,
@@ -60,7 +62,7 @@ export default function ProfilePage() {
   }, [session, status]);
 
   if (status === "loading" || loading) {
-    return <div className="h-screen flex items-center justify-center">Loading Profile...</div>;
+    return <div className="h-screen flex items-center justify-center font-bold text-gray-500 animate-pulse">Loading Profile...</div>;
   }
 
   return (

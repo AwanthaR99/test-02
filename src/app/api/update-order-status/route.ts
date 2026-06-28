@@ -11,32 +11,27 @@ const client = createClient({
 
 export async function POST(req: Request) {
   try {
-    const { productId, variantKey, newQty } = await req.json();
-
+    const body = await req.json();
     
-    const currentVariant = await client.fetch(
-      `*[_id == $productId][0].stock[_key == $variantKey][0]`,
-      { productId, variantKey }
-    );
+    // Frontend එකෙන් එවන Document ID එක සහ අලුත් Status එක ගන්නවා
+    // (Frontend එකේ ලියපු විදිය අනුව id හරි orderId හරි එන්න පුළුවන්)
+    const { id, orderId, status } = body;
+    const docId = id || orderId;
 
-    if (!currentVariant) {
-        return NextResponse.json({ error: "Variant not found" }, { status: 404 });
+    if (!docId || !status) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    
-    await client
-      .patch(productId)
-      .insert("replace", `stock[_key == "${variantKey}"]`, [
-        { 
-          ...currentVariant, 
-          quantity: newQty   
-        }
-      ])
+    // Sanity Database එකේ අදාළ Order Document එකේ Status එක අප්ඩේට් කරනවා
+    const updatedOrder = await client
+      .patch(docId)
+      .set({ status: status.toLowerCase() }) // Schema එකේ 'shipped', 'delivered' කියලා තියෙන නිසා අකුරු පොඩි කරනවා
       .commit();
 
-    return NextResponse.json({ message: "Stock updated successfully!" });
+    return NextResponse.json({ message: "Order status updated successfully!", order: updatedOrder });
+    
   } catch (error) {
-    console.error("Inventory update error:", error);
-    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    console.error("Order status update error:", error);
+    return NextResponse.json({ error: "Failed to update order status" }, { status: 500 });
   }
 }

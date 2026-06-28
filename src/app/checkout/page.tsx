@@ -7,7 +7,8 @@ import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
-import { CreditCard, ShoppingBag } from "lucide-react";
+import { CreditCard, ShoppingBag, Tag } from "lucide-react";
+import { client } from "@/lib/sanity"; 
 
 declare global {
   interface Window {
@@ -37,6 +38,11 @@ export default function CheckoutPage() {
   const [shippingFee, setShippingFee] = useState(0);
   const [selectedProvince, setSelectedProvince] = useState("");
   
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  const [isApplying, setIsApplying] = useState(false);
+  const [couponMessage, setCouponMessage] = useState({ type: "", text: "" });
+  
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -45,6 +51,10 @@ export default function CheckoutPage() {
     phone: "",
     email: "",
   });
+
+  
+  const uniqueProductCount = new Set(items.map((item: any) => item.id || item._id)).size;
+  const isEligibleForFreeShipping = uniqueProductCount >= 3;
 
   useEffect(() => {
     if (session?.user) {
@@ -60,19 +70,97 @@ export default function CheckoutPage() {
     }
   }, [session]);
 
+  
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const provinceName = e.target.value;
     setSelectedProvince(provinceName);
     
     const province = PROVINCES.find(p => p.name === provinceName);
-    setShippingFee(province ? province.fee : 0);
+    if (province) {
+      setShippingFee(isEligibleForFreeShipping ? 0 : province.fee);
+    } else {
+      setShippingFee(0);
+    }
   };
+
+  // 🚨 3. UPDATE: කාර්ට් එකේ Items වෙනස් වෙද්දී (හදිසියෙන් හරි) Shipping Fee එක රී-කැල්කියුලේට් කිරීම
+  useEffect(() => {
+    if (selectedProvince) {
+      const province = PROVINCES.find(p => p.name === selectedProvince);
+      if (province) {
+        setShippingFee(isEligibleForFreeShipping ? 0 : province.fee);
+      }
+    }
+  }, [items, selectedProvince, isEligibleForFreeShipping]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const grandTotal = cartTotal + shippingFee;
+  const applyCoupon = async () => {
+    if (!couponCode) return;
+    setIsApplying(true);
+    setCouponMessage({ type: "", text: "" });
+
+    try {
+      const query = `*[_type == "coupon" && code == "${couponCode}" && isActive == true][0]`;
+      const coupon = await client.fetch(query);
+
+      if (!coupon) {
+        setCouponMessage({ type: "error", text: "Invalid, expired, or inactive coupon code." });
+        setAppliedDiscount(0);
+        return;
+      }
+
+      const targetCategory = coupon.applicableCategory || "all";
+      let eligibleTotal = 0;
+
+      if (targetCategory === "all") {
+        eligibleTotal = cartTotal;
+      } else {
+        const eligibleItems = items.filter(
+          (item) => item.category?.toLowerCase() === targetCategory.toLowerCase()
+        );
+
+        if (eligibleItems.length === 0) {
+          setCouponMessage({ 
+            type: "error", 
+            text: `This coupon is only valid for ${targetCategory.toUpperCase()} items.` 
+          });
+          setAppliedDiscount(0);
+          return;
+        }
+
+        eligibleTotal = eligibleItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      }
+
+      let discountValue = (eligibleTotal * coupon.discount) / 100;
+      if (discountValue > cartTotal) discountValue = cartTotal;
+
+      setAppliedDiscount(Math.round(discountValue)); 
+      
+      const successMsg = targetCategory === "all"
+        ? `${coupon.discount}% Off applied store-wide!`
+        : `${coupon.discount}% Off applied for ${targetCategory.toUpperCase()} items!`;
+
+      setCouponMessage({ type: "success", text: successMsg });
+
+    } catch (error) {
+      console.error("Coupon Check Error:", error);
+      setCouponMessage({ type: "error", text: "Something went wrong. Try again." });
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponCode("");
+    setAppliedDiscount(0);
+    setCouponMessage({ type: "", text: "" });
+  };
+
+  const discountedTotal = Math.max(0, cartTotal - appliedDiscount);
+  const grandTotal = discountedTotal + shippingFee;
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +183,6 @@ export default function CheckoutPage() {
         address: `${formData.address}, ${formData.city}, ${selectedProvince}`,
       };
 
-      // 1. Get PayHere Hash
       const hashRes = await fetch("/api/payhere-hash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -108,7 +195,6 @@ export default function CheckoutPage() {
 
       const { hash, merchantId } = await hashRes.json();
 
-      // 2. Payment Object
       const payment = {
         sandbox: true,
         merchant_id: merchantId,
@@ -129,15 +215,13 @@ export default function CheckoutPage() {
         country: "Sri Lanka",
       };
 
-      // 3. Start Payment
       if (window.payhere) {
         window.payhere.startPayment(payment);
 
         window.payhere.onCompleted = async function onCompleted(paymentId: string) {
-          console.log("Payment completed. Now saving order and updating stock...");
+          console.log("Payment completed. Now saving order...");
 
           try {
-             
              const createOrderRes = await fetch("/api/create-order", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -146,6 +230,8 @@ export default function CheckoutPage() {
                   items,
                   amount: grandTotal,
                   shippingFee,
+                  discount: appliedDiscount, 
+                  couponCode: appliedDiscount > 0 ? couponCode : null,
                   user: customerDetails,
                   status: "paid", 
                 }),
@@ -157,7 +243,6 @@ export default function CheckoutPage() {
                  alert(`Error: ${result.error || "Order Save Failed"}`);
                  return;
               }
-
               
               await fetch("/api/send-email", {
                 method: "POST",
@@ -171,8 +256,8 @@ export default function CheckoutPage() {
                 })
              });
 
-             clearCart();
-             router.push("/profile?success=true");
+              clearCart();
+              router.push("/profile?success=true");
 
           } catch (error) {
              console.error("Order Creation Error:", error);
@@ -218,7 +303,7 @@ export default function CheckoutPage() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12">
         
-        
+        {/* Left Form */}
         <div>
           <h1 className="text-3xl font-black uppercase tracking-tighter mb-8">Checkout</h1>
           
@@ -290,7 +375,7 @@ export default function CheckoutPage() {
           </form>
         </div>
 
-        
+        {/* Right Order Summary */}
         <div className="bg-gray-50 p-8 rounded-lg h-fit sticky top-32 border border-gray-200">
            <h2 className="text-xl font-black uppercase tracking-tight mb-6">Order Summary</h2>
            
@@ -312,17 +397,68 @@ export default function CheckoutPage() {
               ))}
            </div>
 
-           <div className="border-t border-gray-200 pt-4 space-y-2 text-sm text-gray-600">
+           {/* Coupon Code Input Section */}
+           <div className="border-t border-gray-200 pt-6 pb-2">
+             <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Discount code or Gift card"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  disabled={appliedDiscount > 0}
+                  className="flex-1 border border-gray-300 rounded-md px-4 py-3 text-sm focus:ring-2 focus:ring-black outline-none disabled:bg-gray-100"
+                />
+                {appliedDiscount > 0 ? (
+                  <button onClick={removeCoupon} type="button" className="bg-red-50 text-red-600 px-6 py-3 rounded-md font-bold hover:bg-red-100 transition-colors">
+                    Remove
+                  </button>
+                ) : (
+                  <button onClick={applyCoupon} disabled={isApplying || !couponCode} type="button" className="bg-gray-900 text-white px-6 py-3 rounded-md font-bold disabled:bg-gray-400 hover:bg-black transition-colors flex items-center gap-2">
+                    {isApplying ? "..." : <><Tag size={16}/> Apply</>}
+                  </button>
+                )}
+             </div>
+             {couponMessage.text && (
+               <p className={`text-xs mt-2 font-bold ${couponMessage.type === 'error' ? 'text-red-500' : 'text-green-600'}`}>
+                 {couponMessage.text}
+               </p>
+             )}
+           </div>
+
+           <div className="border-t border-gray-200 pt-4 space-y-3 text-sm text-gray-600">
               <div className="flex justify-between">
                  <span>Subtotal</span>
                  <span>Rs. {cartTotal.toLocaleString()}.00</span>
               </div>
-              <div className="flex justify-between">
+              
+              
+              {appliedDiscount > 0 && (
+                <div className="flex justify-between text-green-600 font-bold">
+                   <span>Discount ({couponCode})</span>
+                   <span>- Rs. {appliedDiscount.toLocaleString()}.00</span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center">
                  <span>Shipping ({selectedProvince || "Select Province"})</span>
-                 <span className={`font-bold ${shippingFee > 0 ? "text-gray-900" : "text-red-500"}`}>
-                    {shippingFee > 0 ? `Rs. ${shippingFee}.00` : "Calculated at checkout"}
-                 </span>
+                
+                 {selectedProvince && shippingFee === 0 ? (
+                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider">
+                      FREE SHIPPING 🎉
+                    </span>
+                 ) : (
+                    <span className={`font-bold ${shippingFee > 0 ? "text-gray-900" : "text-gray-400"}`}>
+                       {shippingFee > 0 ? `Rs. ${shippingFee}.00` : "Calculated at checkout"}
+                    </span>
+                 )}
               </div>
+
+           
+              {!isEligibleForFreeShipping && selectedProvince && (
+                <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-2.5 rounded-lg border border-amber-100 mt-2">
+                  💡 Add {3 - uniqueProductCount} more different items to get FREE SHIPPING!
+                </p>
+              )}
            </div>
 
            <div className="border-t border-gray-200 pt-4 mt-4 flex justify-between items-center">

@@ -70,7 +70,6 @@ export const product = defineType({
       },
     }),
 
-    
     defineField({
       name: 'stock',
       title: 'Product Variants (Stock)',
@@ -80,49 +79,17 @@ export const product = defineType({
           type: 'object',
           title: 'Variant',
           fields: [
-            // 1. COLOR
+            // 1. COLOR - (Frontend එකෙන් "N/A" එව්වත්, "Printed" එව්වත් මේක බාරගන්නවා)
             {
               name: 'color',
               title: 'Color',
               type: 'string',
-              options: {
-                list: [
-                  { title: 'Black', value: 'Black' },
-          { title: 'White', value: 'White' },
-          { title: 'Red', value: 'Red' },
-          { title: 'Blue', value: 'Blue' },
-          { title: 'Green', value: 'Green' },
-          { title: 'Yellow', value: 'Yellow' },
-          { title: 'Pink', value: 'Pink' },
-          { title: 'Purple', value: 'Purple' },
-          { title: 'Grey', value: 'Grey' },
-          { title: 'Brown', value: 'Brown' },
-          { title: 'Orange', value: 'Orange' },
-          { title: 'Navy', value: 'Navy' },
-          { title: 'Maroon', value: 'Maroon' },
-          { title: 'Gold', value: 'Gold' },
-          { title: 'Silver', value: 'Silver' },
-          { title: 'Beige', value: 'Beige' },
-          { title: 'Olive Green', value: 'Olive Green' },
-                ]
-              }
             },
-            // 2. SIZE
+            // 2. SIZE - (Frontend එකෙන් "Free Size", "32", "L" මොක එව්වත් බාරගන්නවා)
             { 
               name: 'size', 
               title: 'Size', 
               type: 'string', 
-              options: {
-                list: [
-                  { title: 'XS', value: 'XS' },
-                  { title: 'S', value: 'S' },
-                  { title: 'M', value: 'M' },
-                  { title: 'L', value: 'L' },
-                  { title: 'XL', value: 'XL' },
-                  { title: 'XXL', value: 'XXL' },
-                  { title: 'Free Size', value: 'Free Size' }, 
-                ]
-              }
             },
             // 3. QUANTITY
             { 
@@ -132,6 +99,7 @@ export const product = defineType({
               validation: (Rule) => Rule.min(0) 
             }
           ],
+          // මේ preview එකෙන් Sanity Dashboard එකේ ලස්සනට පෙන්වනවා "Black - 32 (Stock: 10)" වගේ.
           preview: {
             select: {
               color: 'color',
@@ -140,7 +108,7 @@ export const product = defineType({
             },
             prepare({ color, size, qty }) {
               return {
-                title: `${color} - ${size}`,
+                title: `${color || 'N/A'} - ${size || 'Free Size'}`,
                 subtitle: `Stock: ${qty ?? 0}`
               }
             }

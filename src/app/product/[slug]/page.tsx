@@ -45,6 +45,23 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const currentStock = currentVariant ? currentVariant.quantity : 0;
   const isOutOfStock = selectedColor && selectedSize ? currentStock === 0 : false;
 
+  // 🚨 1. UPDATE: ස්ටොක් ලිමිට්ස් අනුව ටෙක්ස්ට් එක සහ ස්ටයිල් එක තීරණය කරන සුපිරි හෙල්පර් ෆන්ක්ෂන් එක
+  const getStockStatus = (stock: number) => {
+    if (stock === 0) {
+      return { text: "Out of Stock", className: "text-red-600 bg-red-50 border-red-100" };
+    }
+    if (stock >= 1 && stock <= 5) {
+      return { text: `Only ${stock} Left! 🔥`, className: "text-red-600 bg-red-50 border-red-200 font-black animate-pulse" };
+    }
+    if (stock >= 6 && stock <= 10) {
+      return { text: "Low Stock ⚠️", className: "text-amber-600 bg-amber-50 border-amber-200 font-black" };
+    }
+    // stock > 10 නම්
+    return { text: "In Stock ✓", className: "text-green-600 bg-green-50 border-green-100 font-bold" };
+  };
+
+  const stockStatus = getStockStatus(currentStock);
+
   useEffect(() => {
     const fetchProduct = async () => {
       const query = `*[_type == "product" && slug.current == "${slug}"][0]{
@@ -53,6 +70,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         "images": images[].asset->url, 
         subCategory, occasion,
         "categoryTitle": category->title,
+        "categoryValue": category->slug.current, 
         "reviews": *[_type == "review" && product._ref == ^._id] | order(createdAt desc)
       }`;
       
@@ -105,6 +123,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       size: selectedSize,
       color: selectedColor,
       quantity: quantity,
+      category: product.categoryValue || "men", 
     });
     setIsCartOpen(true); 
   };
@@ -123,6 +142,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       size: selectedSize,
       color: selectedColor,
       quantity: quantity,
+      category: product.categoryValue || "men",
     });
     setIsCartOpen(false);
     router.push("/checkout");
@@ -239,16 +259,18 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               </div>
             )}
 
-            {/* SIZE SELECTION */}
+            {/* SIZE SELECTION & 🚨 DYNAMIC STOCK ALERT SYSTEM */}
             {availableSizes.length > 0 && (
               <div className="mb-8">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-xs font-bold uppercase text-gray-500 tracking-widest">
                       Size: <span className="text-black ml-1">{selectedSize}</span>
                   </span>
+                  
+                 
                   {selectedColor && selectedSize && (
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${currentStock > 0 ? "text-green-700 bg-green-50" : "text-red-600 bg-red-50"}`}>
-                         {currentStock > 0 ? (currentStock < 5 ? `Only ${currentStock} Left` : "In Stock") : "Out of Stock"}
+                      <span className={`text-[11px] font-black uppercase px-3 py-1 rounded-full border tracking-wide transition-all ${stockStatus.className}`}>
+                         {stockStatus.text}
                       </span>
                   )}
                 </div>
@@ -295,12 +317,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                             ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed" 
                             : "bg-white text-black hover:bg-black hover:text-white"
                         }`}
-                    >
+                   >
                         {isOutOfStock ? "Out of Stock" : "Add to Cart"}
-                    </button>
-                    
-                    
-                    <WishlistButton productId={product._id} />
+                   </button>
+                   
+                   <WishlistButton productId={product._id} />
                </div>
 
                <button 
@@ -311,9 +332,9 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                         ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none" 
                         : "bg-black text-white hover:bg-gray-900"
                     }`}
-                >
+               >
                     Buy It Now
-                </button>
+               </button>
                
                {isOutOfStock && (
                    <div className="flex items-center gap-2 text-red-600 text-xs font-bold bg-red-50 p-3 mt-2">

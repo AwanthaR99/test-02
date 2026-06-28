@@ -10,10 +10,9 @@ export default function AddProductPage() {
   
   const [categories, setCategories] = useState<any[]>([]);
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
-  
   const [formData, setFormData] = useState({
     title: "", 
     price: "", 
@@ -24,6 +23,21 @@ export default function AddProductPage() {
   });
 
   const [stock, setStock] = useState([{ color: "Black", size: "M", quantity: 10 }]);
+
+  // 1. Dynamic Logic Lists
+  const accessoriesList = ['cap', 'belt', 'wallet', 'handbag', 'watch', 'sunglasses', 'perfume', 'cream', 'hair-oil'];
+  const bottomWearsList = ['trouser', 'jeans', 'shorts', 'skirt'];
+
+  // Check current category status
+  const isAccessory = accessoriesList.includes(formData.subCategory);
+  const isBottomWear = bottomWearsList.includes(formData.subCategory);
+
+  // Dynamic Options
+  const sizeOptions = isBottomWear 
+    ? ['26', '28', '30', '32', '34', '36', '38', '40', '42'] 
+    : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
+
+  const colorOptions = ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Grey', 'Brown', 'Navy', 'Maroon', 'Beige', 'Printed'];
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -38,16 +52,23 @@ export default function AddProductPage() {
   }, []);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setImageFiles((prev) => [...prev, ...files]);
+      
+      const newPreviews = files.map(file => URL.createObjectURL(file));
+      setImagePreviews((prev) => [...prev, ...newPreviews]);
     }
   };
-  const removeImage = () => { setImageFile(null); setImagePreview(null); };
+
+  const removeImage = (indexToRemove: number) => {
+    setImageFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+    setImagePreviews((prev) => prev.filter((_, index) => index !== indexToRemove));
+  };
 
   const handleAddVariant = () => setStock([...stock, { color: "White", size: "L", quantity: 5 }]);
   const handleRemoveVariant = (index: number) => setStock(stock.filter((_, i) => i !== index));
+  
   const handleVariantChange = (index: number, field: string, value: string | number) => {
     const newStock = [...stock];
     newStock[index] = { ...newStock[index], [field]: value };
@@ -64,27 +85,38 @@ export default function AddProductPage() {
     setLoading(true);
 
     try {
-      let uploadedImageId = null;
+      let uploadedImageIds: string[] = [];
 
-      if (imageFile) {
+      if (imageFiles.length > 0) {
         setUploadingImage(true);
-        const imageFormData = new FormData();
-        imageFormData.append("image", imageFile);
+        
+        const uploadPromises = imageFiles.map(async (file) => {
+          const imageFormData = new FormData();
+          imageFormData.append("image", file);
+          const imgRes = await fetch("/api/upload-image", { method: "POST", body: imageFormData });
+          return imgRes.json();
+        });
 
-        const imgRes = await fetch("/api/upload-image", { method: "POST", body: imageFormData });
-        const imgData = await imgRes.json();
+        const uploadResults = await Promise.all(uploadPromises);
         setUploadingImage(false);
 
-        if (imgData.success) {
-          uploadedImageId = imgData.assetId;
-        } else {
-          alert("❌ Image upload failed!");
-          setLoading(false);
-          return;
+        uploadedImageIds = uploadResults
+          .filter(res => res.success)
+          .map(res => res.assetId);
+
+        if (uploadedImageIds.length !== imageFiles.length) {
+          alert("⚠️ Some images failed to upload, but proceeding with the successful ones.");
         }
       }
 
-      const payload = { ...formData, stock, imageId: uploadedImageId };
+      // 🚨 UPDATE: Ensure Database gets N/A and Free Size if it's an accessory
+      const finalStock = stock.map(item => 
+        isAccessory 
+          ? { ...item, color: "N/A", size: "Free Size" } 
+          : item
+      );
+
+      const payload = { ...formData, stock: finalStock, imageIds: uploadedImageIds };
 
       const res = await fetch("/api/create-product", {
         method: "POST",
@@ -96,7 +128,8 @@ export default function AddProductPage() {
         alert("🎉 Product Added Successfully!");
         setFormData({ title: "", price: "", description: "", categoryId: "", occasion: "", subCategory: "" });
         setStock([{ color: "Black", size: "M", quantity: 10 }]);
-        removeImage();
+        setImageFiles([]);
+        setImagePreviews([]);
       } else {
         alert("❌ Failed to add product.");
       }
@@ -125,9 +158,6 @@ export default function AddProductPage() {
     { title: 'Cream/Lotion', value: 'cream' }, { title: 'Hair Oil', value: 'hair-oil' }
   ];
 
-  const colorList = ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Grey', 'Brown', 'Orange', 'Navy', 'Maroon', 'Gold', 'Silver', 'Beige', 'Olive Green'];
-  const sizeList = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
-
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen">
       <div className="max-w-5xl mx-auto">
@@ -146,24 +176,29 @@ export default function AddProductPage() {
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* Image Upload */}
-            <div className="lg:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center h-[350px]">
-              {imagePreview ? (
-                <div className="relative w-full h-full rounded-2xl overflow-hidden group">
-                  <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button type="button" onClick={removeImage} className="bg-red-500 text-white p-3 rounded-full hover:bg-red-600 shadow-lg transform hover:scale-110 transition-all">
-                      <Trash2 size={20} />
-                    </button>
+            {/* Multiple Image Upload UI */}
+            <div className="lg:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[350px] overflow-y-auto">
+              <h2 className="text-sm font-black text-slate-800 mb-4 uppercase tracking-wider">Product Images</h2>
+              
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {imagePreviews.map((src, index) => (
+                  <div key={index} className="relative aspect-square rounded-2xl overflow-hidden group border border-slate-200 shadow-sm">
+                    <img src={src} alt="Preview" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button type="button" onClick={() => removeImage(index)} className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 shadow-lg transform hover:scale-110 transition-all">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <label className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
-                  <ImagePlus size={48} className="text-indigo-400 mb-4" />
-                  <span className="text-sm font-bold text-indigo-600">Click to Upload Image</span>
-                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                ))}
+                
+                {/* Upload Button */}
+                <label className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
+                  <ImagePlus size={24} className="text-indigo-400 mb-2" />
+                  <span className="text-[10px] font-bold text-indigo-600 text-center px-2">Add Image</span>
+                  <input type="file" multiple accept="image/*" onChange={handleImageChange} className="hidden" />
                 </label>
-              )}
+              </div>
             </div>
 
             {/* Basic Info */}
@@ -194,7 +229,6 @@ export default function AddProductPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Occasion</label>
                   <select value={formData.occasion} onChange={(e) => setFormData({...formData, occasion: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-700">
-                
                     <option value="">None / Not Applicable</option>
                     {occasionList.map(opt => <option key={opt.value} value={opt.value}>{opt.title}</option>)}
                   </select>
@@ -203,7 +237,6 @@ export default function AddProductPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Sub Category</label>
                   <select value={formData.subCategory} onChange={(e) => setFormData({...formData, subCategory: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-700">
-                    
                     <option value="">None / Not Applicable</option>
                     {subCatList.map(opt => <option key={opt.value} value={opt.value}>{opt.title}</option>)}
                   </select>
@@ -229,22 +262,64 @@ export default function AddProductPage() {
             <div className="space-y-4">
               {stock.map((item, index) => (
                 <div key={index} className="flex flex-wrap md:flex-nowrap items-center gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
+                  
+                  {/* COLOR INPUT (Dynamic) */}
                   <div className="flex-1 space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Color</label>
-                    <select value={item.color} onChange={(e) => handleVariantChange(index, "color", e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none">
-                      {colorList.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <label className="text-xs font-bold text-slate-500 uppercase">
+                      Color {!isAccessory && <span className="text-red-500">*</span>}
+                    </label>
+                    <input 
+                      type="text" 
+                      list={`color-list-${index}`}
+                      required={!isAccessory} 
+                      disabled={isAccessory} 
+                      placeholder={isAccessory ? "N/A" : "Select or Type Color"}
+                      value={isAccessory ? "N/A" : item.color} 
+                      onChange={(e) => handleVariantChange(index, "color", e.target.value)} 
+                      className={`w-full p-2.5 border rounded-lg text-sm font-bold outline-none transition-colors
+                        ${isAccessory ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-slate-200 focus:border-indigo-500'}
+                      `}
+                    />
+                    <datalist id={`color-list-${index}`}>
+                      {colorOptions.map(c => <option key={c} value={c} />)}
+                    </datalist>
                   </div>
+
+                  {/* SIZE INPUT (Dynamic) */}
                   <div className="flex-1 space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Size</label>
-                    <select value={item.size} onChange={(e) => handleVariantChange(index, "size", e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none">
-                      {sizeList.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <label className="text-xs font-bold text-slate-500 uppercase">
+                      Size {!isAccessory && <span className="text-red-500">*</span>}
+                    </label>
+                    <input 
+                      type="text" 
+                      list={`size-list-${index}`}
+                      required={!isAccessory}
+                      disabled={isAccessory} 
+                      placeholder={isAccessory ? "Free Size" : "Select Size"}
+                      value={isAccessory ? "Free Size" : item.size} 
+                      onChange={(e) => handleVariantChange(index, "size", e.target.value)} 
+                      className={`w-full p-2.5 border rounded-lg text-sm font-bold outline-none transition-colors
+                        ${isAccessory ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-slate-200 focus:border-indigo-500'}
+                      `}
+                    />
+                    <datalist id={`size-list-${index}`}>
+                      {sizeOptions.map(s => <option key={s} value={s} />)}
+                    </datalist>
                   </div>
+
+                  {/* QUANTITY INPUT */}
                   <div className="flex-1 space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase">Qty Available</label>
-                    <input type="number" min="0" value={item.quantity} onChange={(e) => handleVariantChange(index, "quantity", parseInt(e.target.value))} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none text-indigo-700" />
+                    <input 
+                      type="number" 
+                      min="0" 
+                      value={item.quantity} 
+                      onChange={(e) => handleVariantChange(index, "quantity", parseInt(e.target.value) || 0)} 
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none text-indigo-700 focus:border-indigo-500" 
+                    />
                   </div>
+
+                  {/* REMOVE BUTTON */}
                   {stock.length > 1 && (
                     <button type="button" onClick={() => handleRemoveVariant(index)} className="mt-5 h-10 w-10 bg-red-50 text-red-500 flex items-center justify-center rounded-lg hover:bg-red-500 hover:text-white transition-colors">
                       <Trash2 size={18} />
@@ -257,7 +332,7 @@ export default function AddProductPage() {
 
           <div className="flex justify-end">
             <button type="submit" disabled={loading || uploadingImage} className={`flex items-center gap-2 px-8 py-4 rounded-xl text-white font-black text-lg transition-all shadow-lg ${loading || uploadingImage ? "bg-slate-400 cursor-wait" : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-500/30"}`}>
-              {uploadingImage ? "Uploading Image..." : loading ? "Saving Product..." : <><Save size={20} /> Publish Product</>}
+              {uploadingImage ? "Uploading Images..." : loading ? "Saving Product..." : <><Save size={20} /> Publish Product</>}
             </button>
           </div>
 

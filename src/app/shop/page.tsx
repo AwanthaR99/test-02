@@ -92,14 +92,14 @@ function ShopContent() {
   // 3. Data Fetching (UPDATED FOR STOCK ARRAY)
   useEffect(() => {
     const fetchProducts = async () => {
-      // 👇 sizes, colors අයින් කරලා 'stock' දැම්මා
+  
       const query = `*[_type == "product"]{
         _id, title, price, "slug": slug.current,
         "imageUrl": images[0].asset->url,
         "categoryName": category->title,
         subCategory, 
         occasion, 
-        stock // 👈 අලුත් Stock Array එක (size, color, quantity)
+        stock // 
       }`;
       const data = await client.fetch(query);
       setProducts(data);
@@ -146,16 +146,16 @@ function ShopContent() {
 
       // 👇 SIZE FILTER (New Stock Logic)
       if (filters.size) {
-        // Stock array එකේ අදාල Size එක තියෙනවද සහ Quantity > 0 ද බලනවා
+        
         const hasSize = Array.isArray(product.stock) && product.stock.some(
            (item: any) => item.size === filters.size && item.quantity > 0
         );
         if (!hasSize) return false;
       }
 
-      // 👇 COLOR FILTER (New Stock Logic)
+      
       if (filters.color) {
-        // Stock array එකේ අදාල Color එක තියෙනවද සහ Quantity > 0 ද බලනවා
+        
         const hasColor = Array.isArray(product.stock) && product.stock.some(
            (item: any) => item.color === filters.color && item.quantity > 0
         );

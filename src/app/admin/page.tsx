@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { client } from "@/lib/sanity";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Package, AlertTriangle, Users, DollarSign } from "lucide-react";
-
-const ADMIN_EMAILS = ["sachirathnayake9@gmail.com", "amilafashion@gmail.com"];
+import { TrendingUp, Package, AlertTriangle, Users, DollarSign, PlusCircle, Box } from "lucide-react";
+import Link from "next/link";
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
@@ -19,34 +18,26 @@ export default function AdminDashboard() {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Security Check
+  const userRole = session?.user?.role as string;
+
+  // 1. Security Check (Role-Based)
   useEffect(() => {
     if (status === "authenticated") {
-      if (!session?.user?.email || !ADMIN_EMAILS.includes(session.user.email)) {
+      if (userRole !== "admin" && userRole !== "staff") {
         router.push("/"); 
       }
     } else if (status === "unauthenticated") {
       router.push("/");
     }
-  }, [status, session, router]);
+  }, [status, userRole, router]);
 
-  // Fetch Data from Sanity (Orders & Products)
+  // 2. Fetch Data from Sanity
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // 1. Fetch Paid Orders & Products at the same time
-        const [ordersData, productsData] = await Promise.all([
-          client.fetch(`*[_type == "order" && status == 'paid'] | order(createdAt desc)`),
-          client.fetch(`*[_type == "product"] { title, stock }`)
-        ]);
+        const productsData = await client.fetch(`*[_type == "product"] { title, stock }`);
 
-        setOrders(ordersData);
-
-        // 2. Calculate Total Revenue
-        const revenue = ordersData.reduce((acc: number, order: any) => acc + (order.totalAmount || 0), 0);
-        setTotalRevenue(revenue);
-
-        // 3. Calculate Low Stock Items (Quantity <= 5)
+        // Calculate Low Stock Items 
         let lowStockItems = 0;
         productsData.forEach((product: any) => {
           if (product.stock) {
@@ -57,59 +48,107 @@ export default function AdminDashboard() {
         });
         setLowStockCount(lowStockItems);
 
-        // 4. Calculate Top Selling Products
-        const productSales: Record<string, number> = {};
-        ordersData.forEach((order: any) => {
-          order.items?.forEach((item: any) => {
-            if (item.title) {
-              productSales[item.title] = (productSales[item.title] || 0) + item.quantity;
-            }
+     
+        if (userRole === "admin") {
+          
+          const ordersData = await client.fetch(`*[_type == "order" && status in ['paid', 'shipped', 'delivered']] | order(createdAt desc)`);
+          setOrders(ordersData);
+
+          
+          const revenue = ordersData.reduce((acc: number, order: any) => acc + (order.totalAmount || order.amount || 0), 0);
+          setTotalRevenue(revenue);
+
+          const productSales: Record<string, number> = {};
+          ordersData.forEach((order: any) => {
+            order.items?.forEach((item: any) => {
+              if (item.title) {
+                productSales[item.title] = (productSales[item.title] || 0) + item.quantity;
+              }
+            });
           });
-        });
 
-        // Convert to array and sort by top 5
-        const sortedTopProducts = Object.entries(productSales)
-          .map(([title, qty]) => ({ title, qty }))
-          .sort((a, b) => b.qty - a.qty)
-          .slice(0, 5);
-        
-        setTopProducts(sortedTopProducts);
+          const sortedTopProducts = Object.entries(productSales)
+            .map(([title, qty]) => ({ title, qty }))
+            .sort((a, b) => (b.qty as number) - (a.qty as number))
+            .slice(0, 5);
+          
+          setTopProducts(sortedTopProducts);
+        }
+
         setLoading(false);
-
       } catch (error) {
         console.error("Error fetching data", error);
         setLoading(false);
       }
     };
 
-    if (status === "authenticated") {
+    if (status === "authenticated" && (userRole === "admin" || userRole === "staff")) {
       fetchDashboardData();
     }
-  }, [status]);
+  }, [status, userRole]);
 
   if (loading || status === "loading") {
-    return <div className="flex h-screen items-center justify-center font-bold text-gray-500 animate-pulse">Loading Analytics...</div>;
+    return <div className="flex h-screen items-center justify-center font-bold text-gray-500 animate-pulse">Loading Dashboard...</div>;
   }
 
-  // Prepare Chart Data (Last 5 Orders trend)
+  // --- STAFF VIEW ---
+  if (userRole === "staff") {
+    return (
+      <div className="p-8 bg-[#F8FAFC] min-h-screen">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Staff Workspace</h1>
+            <p className="text-slate-500 font-medium mt-1">Manage inventory and product listings.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Link href="admin/products" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-4 hover:border-indigo-500 hover:shadow-md transition-all group">
+              <div className="h-16 w-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                <PlusCircle size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">Add New Product</h3>
+            </Link>
+
+            <Link href="/admin/inventory" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-md transition-all group">
+              <div className="h-16 w-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                <Box size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800">Manage Stock Variants</h3>
+            </Link>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Low Stock Alerts</p>
+              <h3 className="text-2xl font-black text-red-600">{lowStockCount} Variants need restocking</h3>
+            </div>
+            <div className="h-12 w-12 bg-red-50 rounded-full flex items-center justify-center text-red-600 animate-pulse">
+              <AlertTriangle size={24} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- ADMIN VIEW ---
+ 
   const chartData = orders.slice(0, 7).reverse().map(order => ({
     name: new Date(order.createdAt).toLocaleDateString('en-US', { weekday: 'short' }),
-    amount: order.totalAmount
+    amount: order.totalAmount || order.amount || 0
   }));
 
   return (
     <div className="p-8 bg-[#F8FAFC] min-h-screen">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Header Section */}
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Overview</h1>
-          <p className="text-slate-500 font-medium mt-1">Welcome back! Here's what's happening in your store today.</p>
+          <p className="text-slate-500 font-medium mt-1">Welcome back, Admin! Here's what's happening today.</p>
         </div>
 
-        {/* --- STAT CARDS --- */}
+        {/* Admin Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-indigo-500 transition-colors">
             <div>
               <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Total Revenue</p>
@@ -122,7 +161,7 @@ export default function AdminDashboard() {
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-blue-500 transition-colors">
             <div>
-              <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Paid Orders</p>
+              <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Completed Orders</p>
               <h3 className="text-2xl font-black text-slate-800">{orders.length}</h3>
             </div>
             <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
@@ -149,19 +188,14 @@ export default function AdminDashboard() {
               <Users size={24} />
             </div>
           </div>
-
         </div>
 
-        {/* --- CHARTS & TOP SELLERS SECTION --- */}
+        {/* Admin Charts & Top Sellers */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Revenue Chart */}
           <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                <TrendingUp size={20} className="text-indigo-500"/> Revenue Trend
-              </h2>
-            </div>
+            <h2 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
+              <TrendingUp size={20} className="text-indigo-500"/> Revenue Trend
+            </h2>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
@@ -181,7 +215,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Top Products List */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
             <h2 className="text-lg font-black text-slate-800 mb-6">Top Selling Items 🔥</h2>
             <div className="space-y-4">
@@ -204,7 +237,6 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-
         </div>
 
       </div>

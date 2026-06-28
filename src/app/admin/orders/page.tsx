@@ -1,12 +1,29 @@
 "use client";
 import { useState, useEffect } from "react";
 import { client } from "@/lib/sanity";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function OrdersPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
+  // --- SECURITY CHECK (Admin Only) ---
+  useEffect(() => {
+    if (status === "authenticated") {
+      
+      if (session?.user?.role !== "admin") {
+        router.push("/admin"); 
+      }
+    } else if (status === "unauthenticated") {
+      router.push("/");
+    }
+  }, [status, session, router]);
 
   const fetchOrders = async () => {
     try {
@@ -21,10 +38,12 @@ export default function OrdersPage() {
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    
+    if (status === "authenticated" && session?.user?.role === "admin") {
+      fetchOrders();
+    }
+  }, [status, session]);
 
-  
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     setUpdating(true);
     try {
@@ -35,7 +54,6 @@ export default function OrdersPage() {
       });
 
       if (!response.ok) throw new Error("Update failed");
-
 
       await fetchOrders();
       setSelectedOrder((prev: any) => ({ ...prev, status: newStatus }));
@@ -49,7 +67,7 @@ export default function OrdersPage() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center font-bold text-gray-600">Loading Orders...</div>;
+  if (loading || status === "loading") return <div className="flex h-screen items-center justify-center font-bold text-gray-500 animate-pulse">Loading Orders...</div>;
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
