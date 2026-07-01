@@ -21,8 +21,8 @@ export default function ContactPage() {
             <div className="flex items-start gap-4">
               <MapPin className="w-6 h-6 text-black mt-1" />
               <div>
-                <p className="font-bold">Head Office</p>
-                <p className="text-gray-500 text-sm">No. 123, Galle Road,<br/>Colombo 03, Sri Lanka.</p>
+                <p className="font-bold">Amila Fashion</p>
+                <p className="text-gray-500 text-sm">No. 05, Wellawaya Road,<br/>Monaragala, Sri Lanka.</p>
               </div>
             </div>
 
@@ -30,8 +30,8 @@ export default function ContactPage() {
               <Phone className="w-6 h-6 text-black mt-1" />
               <div>
                 <p className="font-bold">Phone</p>
-                <p className="text-gray-500 text-sm">+94 77 123 4567</p>
-                <p className="text-gray-500 text-sm">Mon - Fri, 9am - 6pm</p>
+                <p className="text-gray-500 text-sm">+94 71 043 8487</p>
+                <p className="text-gray-500 text-sm">We are open every day from Monday to Sunday, 9am - 10pm</p>
               </div>
             </div>
 

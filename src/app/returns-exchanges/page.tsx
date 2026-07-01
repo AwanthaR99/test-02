@@ -21,7 +21,7 @@ export default function ReturnsPage() {
 
           <section>
             <h2 className="text-xl font-bold text-black mb-3">How to Initiate a Return</h2>
-            <p>Please contact our customer support team at <strong>support@amilafashion.lk</strong> or call us at <strong>+94 77 123 4567</strong> with your Order ID. We will guide you through the process.</p>
+            <p>Please contact our customer support team at <strong>support@amilafashion.lk</strong> or call us at <strong>+94 71 0438487</strong> with your Order ID. We will guide you through the process.</p>
           </section>
         </div>
       </div>
