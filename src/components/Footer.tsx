@@ -23,7 +23,7 @@ export default function Footer() {
 
   const supportLinks = [
     { name: "Contact Us", href: "/contact-us" },
-    { name: "Shipping Policy", href: "/shipping-policy" },
+    { name: "Terms of Service & Privacy Policy", href: "/shipping-policy" },
     { name: "Returns & Exchanges", href: "/returns-exchanges" },
     { name: "Size Guide", href: "/size-guide" },
     { name: "FAQs", href: "/faqs" },
