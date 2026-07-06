@@ -154,7 +154,7 @@ export default function CouponsPage() {
                   value={applicableOccasion} onChange={(e) => setApplicableOccasion(e.target.value)}
                   className="w-full p-4 bg-white border border-slate-200 rounded-xl outline-none font-bold text-slate-700"
                 >
-                  <option value="any">Any Occasion (Casual/Office/Formal sethama)</option>
+                  <option value="any">Any Occasion (Casual/Office/Formal )</option>
                   <option value="casual">Casual Wear</option>
                   <option value="office">Office Wear</option>
                   <option value="inner">Inner Wear</option>
@@ -168,7 +168,7 @@ export default function CouponsPage() {
                   value={applicableSubCategory} onChange={(e) => setApplicableSubCategory(e.target.value)}
                   className="w-full p-4 bg-white border border-slate-200 rounded-xl outline-none font-bold text-slate-700"
                 >
-                  <option value="any">Any Sub Category (Shirts/T-Shirts serama)</option>
+                  <option value="any">Any Sub Category (Shirts/T-Shirts Anything)</option>
                   <option value="t-shirt">T-Shirt</option>
                   <option value="shirt">Shirt</option>
                   <option value="top">Top/Blouse</option>
