@@ -4,7 +4,7 @@ import { client } from "@/lib/sanity";
 import { useCart } from "@/context/CartContext";
 import Image from "next/image";
 import { useEffect, useState, use } from "react";
-import { Star, Truck, RefreshCw, ShieldCheck, AlertCircle, ChevronRight } from "lucide-react";
+import { Truck, RefreshCw, ShieldCheck, AlertCircle, ChevronRight } from "lucide-react";
 import Reviews from "@/components/Reviews";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -45,7 +45,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const currentStock = currentVariant ? currentVariant.quantity : 0;
   const isOutOfStock = selectedColor && selectedSize ? currentStock === 0 : false;
 
-  // 🚨 1. UPDATE: ස්ටොක් ලිමිට්ස් අනුව ටෙක්ස්ට් එක සහ ස්ටයිල් එක තීරණය කරන සුපිරි හෙල්පර් ෆන්ක්ෂන් එක
+  // 🚨 Helper function for the stock limit
   const getStockStatus = (stock: number) => {
     if (stock === 0) {
       return { text: "Out of Stock", className: "text-red-600 bg-red-50 border-red-100" };
@@ -56,7 +56,6 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
     if (stock >= 6 && stock <= 10) {
       return { text: "Low Stock ⚠️", className: "text-amber-600 bg-amber-50 border-amber-200 font-black" };
     }
-    // stock > 10 නම්
     return { text: "In Stock ✓", className: "text-green-600 bg-green-50 border-green-100 font-bold" };
   };
 
@@ -223,11 +222,6 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                 </h1>
                 <div className="flex items-center justify-between">
                     <p className="text-2xl font-bold text-gray-900">Rs. {product.price.toLocaleString()}.00</p>
-                    <div className="flex items-center gap-1 text-yellow-500">
-                        <Star className="w-4 h-4 fill-current" />
-                        <span className="text-xs font-bold text-black ml-1">4.8</span>
-                        <span className="text-xs text-gray-400 underline ml-1 cursor-pointer">Reviews</span>
-                    </div>
                 </div>
             </div>
 
@@ -259,7 +253,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               </div>
             )}
 
-            {/* SIZE SELECTION & 🚨 DYNAMIC STOCK ALERT SYSTEM */}
+            {/* SIZE SELECTION & DYNAMIC STOCK ALERT SYSTEM */}
             {availableSizes.length > 0 && (
               <div className="mb-8">
                 <div className="flex justify-between items-center mb-3">
@@ -267,7 +261,6 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                       Size: <span className="text-black ml-1">{selectedSize}</span>
                   </span>
                   
-                 
                   {selectedColor && selectedSize && (
                       <span className={`text-[11px] font-black uppercase px-3 py-1 rounded-full border tracking-wide transition-all ${stockStatus.className}`}>
                          {stockStatus.text}

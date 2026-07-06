@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
-
 async function getTrendingProducts() {
   const query = `*[_type == "product"] | order(_createdAt desc)[0..3] {
     _id,
@@ -13,7 +12,9 @@ async function getTrendingProducts() {
     "imageUrl": images[0].asset->url,
     category->{title}
   }`;
-  return await client.fetch(query);
+  
+  // { next: { revalidate: 10 } }  Data refresh in every 10sec
+  return await client.fetch(query, {}, { next: { revalidate: 10 } });
 }
 
 export default async function TrendingSection() {
@@ -44,7 +45,7 @@ export default async function TrendingSection() {
 
         {/* 2. Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8">
-          {products.map((product: any) => (
+          {products?.map((product: any) => (
             <Link href={`/product/${product.slug}`} key={product._id} className="group cursor-pointer block">
               
               {/* Product Image Card */}
@@ -78,7 +79,7 @@ export default async function TrendingSection() {
                 </p>
                 
                 <p className="text-sm font-medium text-black mt-2">
-                  LKR {product.price.toLocaleString()}
+                  LKR {product.price?.toLocaleString()}
                 </p>
               </div>
 
