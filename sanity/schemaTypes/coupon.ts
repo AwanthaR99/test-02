@@ -8,13 +8,15 @@ export default {
       title: 'Coupon Code',
       type: 'string',
       description: 'The code users will enter (e.g., MEN20)',
-      validation: (Rule) => Rule.required().uppercase(),
+      // 🚨 මෙතන (Rule: any) ලෙස වෙනස් කර ඇත
+      validation: (Rule: any) => Rule.required().uppercase(),
     },
     {
       name: 'discount',
       title: 'Discount Percentage (%)',
       type: 'number',
-      validation: (Rule) => Rule.min(1).max(100),
+      // 🚨 මෙතනත් (Rule: any) ලෙස වෙනස් කර ඇත
+      validation: (Rule: any) => Rule.min(1).max(100),
     },
     {
       name: 'applicableCategory',
@@ -32,7 +34,6 @@ export default {
       },
       initialValue: 'all',
     },
-    // 1. අලුතෙන් එකතු කල Occasion Field එක (Product Schema එකේ තියෙන විදිහටමයි)
     {
       name: 'applicableOccasion',
       title: 'Applicable Occasion',
@@ -48,9 +49,8 @@ export default {
         ],
       },
       initialValue: 'any',
-      hidden: ({ document }) => document?.applicableCategory === 'all', // All Products නම් මේක hide වෙනවා
+      hidden: ({ document }: any) => document?.applicableCategory === 'all',
     },
-    // 2. අලුතෙන් එකතු කල Sub Category Field එක (Product Schema එකේ තියෙන විදිහටමයි)
     {
       name: 'applicableSubCategory',
       title: 'Applicable Sub Category',
@@ -83,7 +83,7 @@ export default {
         ],
       },
       initialValue: 'any',
-      hidden: ({ document }) => document?.applicableCategory === 'all', // All Products නම් මේකත් hide වෙනවා
+      hidden: ({ document }: any) => document?.applicableCategory === 'all',
     },
     {
       name: 'isActive',
