@@ -39,6 +39,7 @@ export default {
           type: 'object',
           fields: [
             { name: 'title', type: 'string' },
+            {name: 'sku', title: 'Variant SKU', type: 'string' },
             { name: 'quantity', type: 'number' },
             { name: 'price', type: 'number' },
             

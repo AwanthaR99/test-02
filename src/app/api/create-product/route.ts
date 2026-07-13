@@ -6,7 +6,8 @@ const writeClient = createClient({
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET,
   apiVersion: "2024-01-01",
   useCdn: false,
-  token: process.env.SANITY_API_TOKEN,
+  // ⚠️ පොඩි දෙයක්: කලින් අපි .env එකේ හැදුවේ NEXT_PUBLIC_SANITY_WRITE_TOKEN කියලා නම්, මෙතනත් ඒ නමම දාන්න. නැත්නම් SANITY_API_TOKEN තිබ්බට කමක් නෑ .env එකේ ඒක තියෙනවා නම්.
+  token: process.env.SANITY_API_TOKEN || process.env.NEXT_PUBLIC_SANITY_WRITE_TOKEN, 
 });
 
 export async function POST(req: Request) {
@@ -23,18 +24,23 @@ export async function POST(req: Request) {
       price: Number(data.price),
       description: data.description,
       
+      // 🌟 1. අලුතින් එකතු කරපු E-commerce Toggle එක
+      isSyncedToWeb: Boolean(data.isSyncedToWeb), 
+      
       occasion: data.occasion !== "" ? data.occasion : undefined,
       subCategory: data.subCategory !== "" ? data.subCategory : undefined,
       
-      // Stock Variants
+      // 🌟 2. Stock Variants ටික අලුත් විදිහට Map කිරීම (sku, inStoreStock, webStock)
       stock: data.stock.map((item: any) => ({
         _key: crypto.randomUUID(), 
+        sku: item.sku,
         color: item.color,
         size: item.size,
-        quantity: Number(item.quantity)
+        inStoreStock: Number(item.inStoreStock),
+        webStock: Number(item.webStock)
       })),
 
-      //  UPDATE: Handle multiple images (Mapping through imageIds array)
+      // UPDATE: Handle multiple images (Mapping through imageIds array)
       images: data.imageIds && data.imageIds.length > 0 
         ? data.imageIds.map((id: string) => ({
             _key: crypto.randomUUID(),

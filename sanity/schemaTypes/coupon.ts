@@ -1,24 +1,65 @@
-export default {
+import { defineField, defineType } from 'sanity'
+
+export const coupon = defineType({
   name: 'coupon',
   title: 'Coupons',
   type: 'document',
   fields: [
-    {
+    defineField({
       name: 'code',
       title: 'Coupon Code',
       type: 'string',
       description: 'The code users will enter (e.g., MEN20)',
-      // 🚨 මෙතන (Rule: any) ලෙස වෙනස් කර ඇත
       validation: (Rule: any) => Rule.required().uppercase(),
-    },
-    {
+    }),
+    
+    // 🌟 DISCOUNT TYPE SELECTOR (PERCENTAGE OR FIXED)
+    defineField({
+      name: 'discountType',
+      title: 'Discount Type',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'Percentage (%)', value: 'percentage' },
+          { title: 'Fixed Amount (LKR)', value: 'fixed' },
+        ],
+        layout: 'radio',
+      },
+      initialValue: 'percentage',
+      validation: (Rule: any) => Rule.required(),
+    }),
+
+    defineField({
       name: 'discount',
-      title: 'Discount Percentage (%)',
+      title: 'Discount Value',
+      description: 'Enter percentage value (1-100) or fixed LKR amount.',
       type: 'number',
-      // 🚨 මෙතනත් (Rule: any) ලෙස වෙනස් කර ඇත
-      validation: (Rule: any) => Rule.min(1).max(100),
-    },
-    {
+      validation: (Rule: any) =>
+        Rule.required().custom((value: number, context: any) => {
+          const type = context.document?.discountType;
+          if (type === 'percentage') {
+            if (value < 1 || value > 100) {
+              return 'Percentage must be between 1 and 100%';
+            }
+          }
+          if (type === 'fixed') {
+            if (value < 1) {
+              return 'Fixed discount amount must be greater than 0 LKR';
+            }
+          }
+          return true;
+        }),
+    }),
+
+    // 🌟 EXCLUSIVE LOYALTY EMAIL RESTRICTION
+    defineField({
+      name: 'allowedEmail',
+      title: 'Allowed Customer Email (Loyalty Restriction)',
+      type: 'string',
+      description: 'Leave empty for store-wide use. Enter an email to lock this coupon to a specific loyalty customer.',
+    }),
+
+    defineField({
       name: 'applicableCategory',
       title: 'Applicable Main Category',
       type: 'string',
@@ -33,8 +74,9 @@ export default {
         ],
       },
       initialValue: 'all',
-    },
-    {
+    }),
+
+    defineField({
       name: 'applicableOccasion',
       title: 'Applicable Occasion',
       type: 'string',
@@ -50,8 +92,9 @@ export default {
       },
       initialValue: 'any',
       hidden: ({ document }: any) => document?.applicableCategory === 'all',
-    },
-    {
+    }),
+
+    defineField({
       name: 'applicableSubCategory',
       title: 'Applicable Sub Category',
       type: 'string',
@@ -84,12 +127,13 @@ export default {
       },
       initialValue: 'any',
       hidden: ({ document }: any) => document?.applicableCategory === 'all',
-    },
-    {
+    }),
+
+    defineField({
       name: 'isActive',
       title: 'Is Active?',
       type: 'boolean',
       initialValue: true,
-    }
-  ]
-}
+    }),
+  ],
+})

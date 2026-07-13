@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { client } from "@/lib/sanity";
-import { PackagePlus, Save, PlusCircle, Trash2, ImagePlus } from "lucide-react";
+import { PackagePlus, Save, PlusCircle, Trash2, ImagePlus, Globe } from "lucide-react";
 
 export default function AddProductPage() {
   const [loading, setLoading] = useState(false);
@@ -20,19 +20,21 @@ export default function AddProductPage() {
     categoryId: "", 
     occasion: "", 
     subCategory: "", 
+    isSyncedToWeb: false, // 🌟 1. Web Toggle එක සඳහා රාමුවක් හැදුවා
   });
 
-  const [stock, setStock] = useState([{ color: "Black", size: "M", quantity: 10 }]);
+  // 🌟 2. Variant එකක් ඇතුළේ පරණ quantity වෙනුවට sku, inStoreStock, webStock දැම්මා
+  const [stock, setStock] = useState([
+    { sku: "", color: "Black", size: "M", inStoreStock: 10, webStock: 10 }
+  ]);
 
-  // 1. Dynamic Logic Lists
+  // Dynamic Logic Lists
   const accessoriesList = ['cap', 'belt', 'wallet', 'handbag', 'watch', 'sunglasses', 'perfume', 'cream', 'hair-oil'];
   const bottomWearsList = ['trouser', 'jeans', 'shorts', 'skirt'];
 
-  // Check current category status
   const isAccessory = accessoriesList.includes(formData.subCategory);
   const isBottomWear = bottomWearsList.includes(formData.subCategory);
 
-  // Dynamic Options
   const sizeOptions = isBottomWear 
     ? ['26', '28', '30', '32', '34', '36', '38', '40', '42'] 
     : ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
@@ -55,7 +57,6 @@ export default function AddProductPage() {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
       setImageFiles((prev) => [...prev, ...files]);
-      
       const newPreviews = files.map(file => URL.createObjectURL(file));
       setImagePreviews((prev) => [...prev, ...newPreviews]);
     }
@@ -66,7 +67,8 @@ export default function AddProductPage() {
     setImagePreviews((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  const handleAddVariant = () => setStock([...stock, { color: "White", size: "L", quantity: 5 }]);
+  // 🌟 Variant එකක් අලුතින් add කරද්දී වැටෙන default values
+  const handleAddVariant = () => setStock([...stock, { sku: "", color: "White", size: "L", inStoreStock: 5, webStock: 5 }]);
   const handleRemoveVariant = (index: number) => setStock(stock.filter((_, i) => i !== index));
   
   const handleVariantChange = (index: number, field: string, value: string | number) => {
@@ -109,14 +111,19 @@ export default function AddProductPage() {
         }
       }
 
-      // 🚨 UPDATE: Ensure Database gets N/A and Free Size if it's an accessory
+      // Accessory එකක් නම් auto-fill වෙන logic එක අලුත් fields වලට ගැලපුවා
       const finalStock = stock.map(item => 
         isAccessory 
           ? { ...item, color: "N/A", size: "Free Size" } 
           : item
       );
 
-      const payload = { ...formData, stock: finalStock, imageIds: uploadedImageIds };
+      // 🎯 අලුත් structure එකට අනුව සකස් කරපු Payload එක
+      const payload = { 
+        ...formData, 
+        stock: finalStock, 
+        imageIds: uploadedImageIds 
+      };
 
       const res = await fetch("/api/create-product", {
         method: "POST",
@@ -126,8 +133,8 @@ export default function AddProductPage() {
 
       if (res.ok) {
         alert("🎉 Product Added Successfully!");
-        setFormData({ title: "", price: "", description: "", categoryId: "", occasion: "", subCategory: "" });
-        setStock([{ color: "Black", size: "M", quantity: 10 }]);
+        setFormData({ title: "", price: "", description: "", categoryId: "", occasion: "", subCategory: "", isSyncedToWeb: false });
+        setStock([{ sku: "", color: "Black", size: "M", inStoreStock: 10, webStock: 10 }]);
         setImageFiles([]);
         setImagePreviews([]);
       } else {
@@ -242,6 +249,26 @@ export default function AddProductPage() {
                   </select>
                 </div>
 
+                {/* 🌟 3. මෙන්න ලස්සනට ආපු Web Sync Toggle Button එක UI එකට දැම්මා */}
+                <div className="md:col-span-2 p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Globe className="text-indigo-600" size={20} />
+                    <div>
+                      <p className="text-sm font-black text-slate-800">Show on E-commerce Website?</p>
+                      <p className="text-xs font-medium text-slate-500">Enable this to sync this product to the public online store.</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.isSyncedToWeb} 
+                      onChange={(e) => setFormData({...formData, isSyncedToWeb: e.target.checked})} 
+                      className="sr-only peer" 
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-bold text-slate-700">Description</label>
                   <textarea rows={3} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium" />
@@ -261,10 +288,23 @@ export default function AddProductPage() {
 
             <div className="space-y-4">
               {stock.map((item, index) => (
-                <div key={index} className="flex flex-wrap md:flex-nowrap items-center gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
+                <div key={index} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
                   
-                  {/* COLOR INPUT (Dynamic) */}
-                  <div className="flex-1 space-y-1">
+                  {/* 🌟 A. SKU TAG INPUT */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Variant SKU</label>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="AMILA-POL-BLK-M"
+                      value={item.sku}
+                      onChange={(e) => handleVariantChange(index, "sku", e.target.value.toUpperCase())}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold outline-none focus:border-indigo-500 uppercase"
+                    />
+                  </div>
+
+                  {/* COLOR INPUT */}
+                  <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase">
                       Color {!isAccessory && <span className="text-red-500">*</span>}
                     </label>
@@ -273,7 +313,7 @@ export default function AddProductPage() {
                       list={`color-list-${index}`}
                       required={!isAccessory} 
                       disabled={isAccessory} 
-                      placeholder={isAccessory ? "N/A" : "Select or Type Color"}
+                      placeholder={isAccessory ? "N/A" : "Select Color"}
                       value={isAccessory ? "N/A" : item.color} 
                       onChange={(e) => handleVariantChange(index, "color", e.target.value)} 
                       className={`w-full p-2.5 border rounded-lg text-sm font-bold outline-none transition-colors
@@ -285,8 +325,8 @@ export default function AddProductPage() {
                     </datalist>
                   </div>
 
-                  {/* SIZE INPUT (Dynamic) */}
-                  <div className="flex-1 space-y-1">
+                  {/* SIZE INPUT */}
+                  <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase">
                       Size {!isAccessory && <span className="text-red-500">*</span>}
                     </label>
@@ -307,24 +347,38 @@ export default function AddProductPage() {
                     </datalist>
                   </div>
 
-                  {/* QUANTITY INPUT */}
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Qty Available</label>
+                  {/* 🌟 B. IN-STORE POS STOCK INPUT */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Store Stock</label>
                     <input 
                       type="number" 
                       min="0" 
-                      value={item.quantity} 
-                      onChange={(e) => handleVariantChange(index, "quantity", parseInt(e.target.value) || 0)} 
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none text-indigo-700 focus:border-indigo-500" 
+                      value={item.inStoreStock} 
+                      onChange={(e) => handleVariantChange(index, "inStoreStock", parseInt(e.target.value) || 0)} 
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none text-emerald-700 focus:border-emerald-500" 
                     />
                   </div>
 
-                  {/* REMOVE BUTTON */}
-                  {stock.length > 1 && (
-                    <button type="button" onClick={() => handleRemoveVariant(index)} className="mt-5 h-10 w-10 bg-red-50 text-red-500 flex items-center justify-center rounded-lg hover:bg-red-500 hover:text-white transition-colors">
-                      <Trash2 size={18} />
-                    </button>
-                  )}
+                  {/* 🌟 C. WEB STOCK INPUT & REMOVE BUTTON CONTAINER */}
+                  <div className="space-y-1 flex gap-2 items-center">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Web Stock</label>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        value={item.webStock} 
+                        onChange={(e) => handleVariantChange(index, "webStock", parseInt(e.target.value) || 0)} 
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none text-blue-700 focus:border-blue-500" 
+                      />
+                    </div>
+                    
+                    {stock.length > 1 && (
+                      <button type="button" onClick={() => handleRemoveVariant(index)} className="h-10 w-10 bg-red-50 text-red-500 flex items-center justify-center rounded-lg hover:bg-red-500 hover:text-white transition-colors shrink-0">
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
+
                 </div>
               ))}
             </div>

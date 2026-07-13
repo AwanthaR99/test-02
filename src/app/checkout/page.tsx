@@ -8,7 +8,7 @@ import Link from "next/link";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { CreditCard, ShoppingBag, Tag } from "lucide-react";
-import { client } from "@/lib/sanity"; 
+import { client } from "@/lib/sanity";
 
 declare global {
   interface Window {
@@ -42,7 +42,7 @@ export default function CheckoutPage() {
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [isApplying, setIsApplying] = useState(false);
   const [couponMessage, setCouponMessage] = useState({ type: "", text: "" });
-  
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -52,7 +52,6 @@ export default function CheckoutPage() {
     email: "",
   });
 
-  
   const uniqueProductCount = new Set(items.map((item: any) => item.id || item._id)).size;
   const isEligibleForFreeShipping = uniqueProductCount >= 3;
 
@@ -70,11 +69,10 @@ export default function CheckoutPage() {
     }
   }, [session]);
 
-  
   const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const provinceName = e.target.value;
     setSelectedProvince(provinceName);
-    
+
     const province = PROVINCES.find(p => p.name === provinceName);
     if (province) {
       setShippingFee(isEligibleForFreeShipping ? 0 : province.fee);
@@ -83,7 +81,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // 🚨 3. UPDATE: කාර්ට් එකේ Items වෙනස් වෙද්දී (හදිසියෙන් හරි) Shipping Fee එක රී-කැල්කියුලේට් කිරීම
   useEffect(() => {
     if (selectedProvince) {
       const province = PROVINCES.find(p => p.name === selectedProvince);
@@ -97,17 +94,36 @@ export default function CheckoutPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // 🌟 UPDATED: FIXED PRICE / PERCENTAGE & EMAIL RESTRICTION LOGIC
   const applyCoupon = async () => {
     if (!couponCode) return;
     setIsApplying(true);
     setCouponMessage({ type: "", text: "" });
 
     try {
-      const query = `*[_type == "coupon" && code == "${couponCode}" && isActive == true][0]`;
+      // 1. සැනිටි එකෙන් අලුත් fields (discountType, allowedEmail) ටිකත් එක්කම කූපන් එක ගන්නවා
+      const query = `*[_type == "coupon" && code == "${couponCode}" && isActive == true][0]{
+        code,
+        discount,
+        discountType,
+        allowedEmail,
+        applicableCategory
+      }`;
       const coupon = await client.fetch(query);
 
       if (!coupon) {
         setCouponMessage({ type: "error", text: "Invalid, expired, or inactive coupon code." });
+        setAppliedDiscount(0);
+        return;
+      }
+
+      // 🌟 2. LOYALTY CUSTOMER EMAIL CHECK
+      // සැනිටි එකේ allowedEmail එකක් සෙට් කරලා තියෙනවා නම් විතරක් චෙක් කරනවා
+      if (coupon.allowedEmail && coupon.allowedEmail.trim().toLowerCase() !== formData.email.trim().toLowerCase()) {
+        setCouponMessage({ 
+          type: "error", 
+          text: "This exclusive coupon code is linked to another loyalty account email." 
+        });
         setAppliedDiscount(0);
         return;
       }
@@ -134,15 +150,24 @@ export default function CheckoutPage() {
         eligibleTotal = eligibleItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       }
 
-      let discountValue = (eligibleTotal * coupon.discount) / 100;
+      // 🌟 3. DYNAMIC DISCOUNT CALCULATION BASED ON TYPE
+      let discountValue = 0;
+      if (coupon.discountType === "fixed") {
+        // Fixed Amount එකක් නම් සැනිටි එකේ ගාණ කෙලින්ම අඩු කරයි
+        discountValue = coupon.discount; 
+      } else {
+        // Percentage (%) එකක් නම් ප්‍රතිශතය හදයි
+        discountValue = (eligibleTotal * coupon.discount) / 100;
+      }
+
       if (discountValue > cartTotal) discountValue = cartTotal;
 
       setAppliedDiscount(Math.round(discountValue)); 
       
-      const successMsg = targetCategory === "all"
-        ? `${coupon.discount}% Off applied store-wide!`
-        : `${coupon.discount}% Off applied for ${targetCategory.toUpperCase()} items!`;
-
+      const successMsg = coupon.discountType === "fixed"
+        ? `Exclusive Rs. ${coupon.discount.toLocaleString()}.00 Fixed Discount applied!`
+        : `${coupon.discount}% Off applied store-wide!`;
+        
       setCouponMessage({ type: "success", text: successMsg });
 
     } catch (error) {
@@ -164,7 +189,6 @@ export default function CheckoutPage() {
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!selectedProvince) {
         alert("Please select your province to calculate shipping.");
         return;
@@ -192,7 +216,6 @@ export default function CheckoutPage() {
           currency: currency,
         }),
       });
-
       const { hash, merchantId } = await hashRes.json();
 
       const payment = {
@@ -217,10 +240,8 @@ export default function CheckoutPage() {
 
       if (window.payhere) {
         window.payhere.startPayment(payment);
-
         window.payhere.onCompleted = async function onCompleted(paymentId: string) {
           console.log("Payment completed. Now saving order...");
-
           try {
              const createOrderRes = await fetch("/api/create-order", {
                 method: "POST",
@@ -236,7 +257,6 @@ export default function CheckoutPage() {
                   status: "paid", 
                 }),
               });
-
               const result = await createOrderRes.json();
 
               if (!createOrderRes.ok) {
@@ -258,17 +278,14 @@ export default function CheckoutPage() {
 
               clearCart();
               router.push("/profile?success=true");
-
           } catch (error) {
              console.error("Order Creation Error:", error);
              alert("Critical Error: Payment Success but Order was not saved in DB.");
           }
         };
-
         window.payhere.onDismissed = function onDismissed() {
           setLoading(false);
         };
-
         window.payhere.onError = function onError(error: string) {
           alert("Payment Error: " + error);
           setLoading(false);
@@ -357,14 +374,14 @@ export default function CheckoutPage() {
                 >
                     <option value="" disabled>Select Province</option>
                     {PROVINCES.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
+                      <option key={p.name} value={p.name}>{p.name}</option>
                     ))}
                 </select>
               </div>
             </div>
 
             <div className="pt-6">
-               <button 
+              <button 
                   type="submit" 
                   disabled={loading}
                   className="w-full bg-black text-white py-4 rounded-md font-bold uppercase tracking-widest hover:bg-gray-900 transition flex justify-center items-center gap-2"
@@ -383,7 +400,7 @@ export default function CheckoutPage() {
               {items.map((item) => (
                  <div key={`${item.id}-${item.size}`} className="flex gap-4 items-center">
                     <div className="relative w-16 h-20 bg-white rounded border border-gray-200 overflow-hidden flex-shrink-0">
-                       {item.image && <Image src={item.image} alt={item.title} fill className="object-cover" />}
+                        {item.image && <Image src={item.image} alt={item.title} fill className="object-cover" />}
                        <span className="absolute top-0 right-0 bg-gray-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-bl-md font-bold">
                           {item.quantity}
                        </span>
@@ -400,7 +417,7 @@ export default function CheckoutPage() {
            {/* Coupon Code Input Section */}
            <div className="border-t border-gray-200 pt-6 pb-2">
              <div className="flex gap-2">
-                <input
+               <input
                   type="text"
                   placeholder="Discount code or Gift card"
                   value={couponCode}
@@ -418,7 +435,7 @@ export default function CheckoutPage() {
                   </button>
                 )}
              </div>
-             {couponMessage.text && (
+              {couponMessage.text && (
                <p className={`text-xs mt-2 font-bold ${couponMessage.type === 'error' ? 'text-red-500' : 'text-green-600'}`}>
                  {couponMessage.text}
                </p>
@@ -431,7 +448,6 @@ export default function CheckoutPage() {
                  <span>Rs. {cartTotal.toLocaleString()}.00</span>
               </div>
               
-              
               {appliedDiscount > 0 && (
                 <div className="flex justify-between text-green-600 font-bold">
                    <span>Discount ({couponCode})</span>
@@ -441,19 +457,17 @@ export default function CheckoutPage() {
 
               <div className="flex justify-between items-center">
                  <span>Shipping ({selectedProvince || "Select Province"})</span>
-                
                  {selectedProvince && shippingFee === 0 ? (
                     <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider">
                       FREE SHIPPING 🎉
                     </span>
                  ) : (
-                    <span className={`font-bold ${shippingFee > 0 ? "text-gray-900" : "text-gray-400"}`}>
+                     <span className={`font-bold ${shippingFee > 0 ? "text-gray-900" : "text-gray-400"}`}>
                        {shippingFee > 0 ? `Rs. ${shippingFee}.00` : "Calculated at checkout"}
                     </span>
                  )}
               </div>
 
-           
               {!isEligibleForFreeShipping && selectedProvince && (
                 <p className="text-[11px] text-amber-600 font-bold bg-amber-50 p-2.5 rounded-lg border border-amber-100 mt-2">
                   💡 Add {3 - uniqueProductCount} more different items to get FREE SHIPPING!
